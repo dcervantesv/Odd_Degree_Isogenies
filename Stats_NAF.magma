@@ -1,0 +1,473 @@
+clear;
+"";
+// "";"";
+// "";"";
+"";
+primes := [   3,   5,   7,  11,  13,  17,  19,  23,
+  29,  31,  37,  41,  43,  47,  53,  59,
+  61,  67,  71,  73,  79,  83,  89,  97,
+ 101, 103, 107, 109, 113, 127, 131, 137,
+ 139, 149, 151, 157, 163, 167, 173, 179,
+ 181, 191, 193, 197, 199, 211, 223, 227,
+ 229, 233, 239, 241, 251, 257, 263, 269,
+ 271, 277, 281, 283, 293, 307, 311, 313,
+ 317, 331, 337, 347, 349, 353, 359, 367,
+ 373, 587];
+
+
+
+p := (4 * &*primes) - 1;
+Fp := GF(p);
+a := Random(Fp);
+NAF := function(n)
+    i := 1;
+    L := [];
+    k := n;
+//     K := Intseq(k, 2);
+    while k ge 1 do
+        if IsOdd(k) then
+            L[i] := 2 - (k mod 4);
+            k := k - L[i];
+        else
+            L[i] := 0;
+        end if;
+        k := k div 2;
+        i +:= 1;
+    end while;
+    return L;
+end function;
+
+DoubleExpNAF := function(a, L)
+    if L[1] gt 0 then
+        ap := a;
+        am := 1;
+    else
+        ap := 1;
+        am := a;
+    end if;
+    base := a;
+    for i in [2..#L] do
+        base := base^2;
+        if L[i] eq 1 then
+            ap := ap * base;
+        end if;
+        if L[i] eq -1 then
+            am := am * base;
+        end if;
+    end for;
+    return ap, am;
+end function;
+
+NAFexp := function(l, L, w, a, d, F)
+    By := F[1, 1];
+    Bz := F[1, 2];
+    s := l div 2;
+    for i := 2 to s
+        By := By * F[i, 1];
+        Bz := Bz * F[i, 2];
+    end for;
+    //Initialization of vectors
+    Ta := [1, 1];
+    Td := [1, 1];
+    Sign := ((L[1] + 1) div 2) + 1;
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := 2 to (w-1) do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    a := a^2;
+    d := d^2;
+    Sign := (Sign mod 2) + 1; //oposite sign
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := (w+1) to #L do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Sign := ((L[i] + 1) div 2) + 1;
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+     if L[w] eq 0 then
+        ap := Bz^8 * Ta[2];
+        am := By^8 * Ta[2];
+    else
+        ap := Bz^8 * Ta[2] * Td[1];
+        am := By^8 * Ta[1] * Ta[2];
+    end if;
+    return ap, am;
+end function;
+
+Nafexp := function(a, d, L, w)
+//Initialization of vectors
+    Ta := [1, 1];
+    Td := [1, 1];
+    Sign := ((L[1] + 1) div 2) + 1;
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := 2 to (w-1) do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    a := a^2;
+    d := d^2;
+    Sign := (Sign mod 2) + 1; //oposite sign
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := (w+1) to #L do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Sign := ((L[i] + 1) div 2) + 1;
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    if L[w] eq 0 then
+        aa := Ta[2];
+        dd := Td[2];
+    else
+        aa := Ta[2]*(Ta[1]^-1);
+        dd := Td[2]*(Td[1]^-1);
+    end if;
+    return Fp!aa, Fp!dd;
+end function;
+
+HammingW := function(a);
+    ctr := 0;
+    for i in a do
+        if i ne 0 then
+            ctr +:= 1;
+        end if;
+    end for;
+    return ctr;
+end function;
+
+costexp := function(n, M, S)
+    bin := Intseq(n,2);
+    naf := NAF(n);
+    kps := (((n-1) div 2) - 1)*M; //cost of computing By (Bz)
+    //cost of a^li * By^8 using Binary exponentiation
+    costB := ((#bin + 2) * S) + ((HammingW(bin) + 1) * M);
+    //cost of a^li * By^8 using NAF exponentiation
+    //There is one extra multiplication because the negative part
+    //is multiplied on the d' side.
+    costN := ((#naf + 2) * S) + ((HammingW(naf) + 2) * M);
+    //We need to multiply by two because we compute a' and d'
+    return 2*(costB + kps), 2*(costN + kps);
+end function;
+
+costexp7 := function(n, M, S)
+    bin := Intseq(n,2);
+    naf := NAF(n);
+    kps := (((n-1) div 2) - 1)*M; //cost of computing By (Bz)
+    //cost of a^li * By^8 using Binary exponentiation
+    costB := ((#bin + 2) * S) + ((HammingW(bin) + 1) * M);
+    //cost of a^li * By^8 using NAF exponentiation
+    //There is one extra multiplication because the negative part
+    //is multiplied on the d' side.
+    costN := ((#naf + 2) * S) + ((HammingW(naf) + 2) * M);
+    //We need to multiply by two because we compute a' and d'
+    return 2*(costB + kps), 2*(costN + kps);
+end function;
+
+
+costexp_div := function(n, M, S)
+    k := n div 8;
+    r := n mod 8;
+    bink := Intseq(k,2);
+//     naf := NAF(k);
+    
+    kps := (((n-1) div 2) - 1)*M; //cost of computing By (Bz)
+    //cost of a^r * (By * a^k)^8 using Binary exponentiation
+    //There i one extra Mul because the multiplication inside
+    if k eq 0 then
+        sqrsk := 0;
+    else
+        sqrsk := #bink - 1;
+    end if;
+    costB := ((sqrsk + 3) * S) + ((HammingW(bink) + 1) * M);
+    if r eq 1 then
+        costB +:= M;
+    else
+        costB +:= 2*M;
+    end if;
+    
+    return 2*(costB + kps);
+end function;
+//Costof codomain curve
+
+cost_CODOM_NAF := function(n, M, S)
+    s := (n - 1) div 2;
+    L := NAF(n);
+    return 2 * ( (s + HammingW(L) - 1) * M +  (#L + 2)*S );
+end function;
+
+cost_CODOM_BIN := function(n, M, S)
+    s := (n - 1) div 2;
+    t := Intseq(n, 2);
+    return 2 * ( (s + HammingW(t) - 1) * M +  (#t + 2)*S );
+end function;
+
+cost_CODOM_Onuki := function(n, M, S)
+    s := (n - 1) div 2;
+    A := 0.05 * M;
+    return ((5*s - 1)*M) + (2*S) + ((s+5)*A);
+end function;
+
+cost_CODOM_CHa := function(n, M, S)
+    s := (n - 1) div 2;
+    A := 0.05 * M;
+    return (4*s *M) + (4*S) + ((4*s + 3)*A);
+end function;
+
+cost_CODOM_Div := function(n, M, S)
+    s := (n - 1) div 2;
+    k := Intseq(n div 8, 2);
+    r := n mod 8;
+    if r eq 1 then
+        cost := 2* ((HammingW(k) + s)*M + (#k + 2)*S );
+    else
+        cost := 2* ((HammingW(k) + s + 1)*M + (#k + 2)*S );
+    end if;
+    return cost;
+end function;
+
+cost_CODOM_DivNAF := function(n, M, S)
+    s := (n - 1) div 2;
+    k := NAF(n div 8);
+    r := n mod 8;
+    if r eq 1 then
+        cost := 2* ((HammingW(k) + s)*M + (#k + 2)*S );
+    else
+        cost := 2* ((HammingW(k) + s + 1)*M + (#k + 2)*S );
+    end if;
+    return cost;
+end function;
+
+Create_Table := procedure(primes, M, S)
+    printf "\\begin{table}\n\\centering\n\\begin{tabular}{c|c|c|c|c|c}\n";
+    printf "degree  &   CH & Onuki   &    Meyer  &  \\dive & \\divnaf \\\\\n \\hline \\\\ \n";
+    for p in primes do
+        o := cost_CODOM_Onuki(p, M, S);
+        m := cost_CODOM_BIN(p, M, S);
+        d := cost_CODOM_Div(p, M, S);
+        dn := cost_CODOM_DivNAF(p, M, S);
+        c := cost_CODOM_CHa(p, M, S);
+        costs := [c, o, m, d,dn];
+        min, idx := Min(costs);
+        string := Sprintf("%o\t&", p);
+        for i in [1..(#costs-1)] do
+            if i eq idx then
+                string := Sprintf("%o\\cellcolor{gray!30}%o\t&\t", string, costs[i]);
+            else
+                string := Sprintf("%o%o\t&\t", string, costs[i]);
+            end if;
+        end for;
+        if #costs eq idx then
+            string := Sprintf("%o\\cellcolor{gray!30}%o\t\\\\", string, costs[#costs]);
+        else
+            string := Sprintf("%o%o\t\\\\", string, costs[#costs]);
+        end if;
+        string;
+//         printf "%o\t&\t%o\t&\t%o\t&\t%o\t&\t%o\t&\t%o\t\\\\\n", p, c, o, m, d, dn ;
+    end for;
+end procedure;
+CB := [];
+CN := [];
+Cd := [];
+RR := RealField(14);
+M := RR!1;
+S := RR!0.8;
+/*
+for i := 1 to #primes do
+    CB[i], CN[i] := costexp(primes[i], M, S);
+    Cd[i] := costexp_div(primes[i], M, S);
+end for;*/
+
+primesFilter := primes[4..74];
+// primesFilter1 := [i: i in [9..2^20] | IsPrime(i)];
+// primes2 := primesFilter1;
+primes2 := primes[4..#primes];
+NAFs := [NAF(primes2[i]) : i in [1..#primes2]];
+BINs := [Intseq(primes2[i], 2) : i in [1..#primes2]];
+
+primesFilter := [primes2[i] : i in [1..#primes2] | NAFs[i] ne BINs[i]];
+primesTie := [primes2[i] : i in [1..#primes2] | NAFs[i] eq BINs[i]];
+NAFFilter := [NAFs[i] : i in [1..#primes2] | NAFs[i] ne BINs[i]];
+BINFilter := [BINs[i] : i in [1..#primes2] | NAFs[i] ne BINs[i]];
+
+
+//Costs
+costNAF := [cost_CODOM_NAF(p, M, S) : p in primesFilter];
+costBIN := [cost_CODOM_BIN(p, M, S) : p in primesFilter];
+costOnuki := [cost_CODOM_Onuki(p, M, S) : p in primesFilter];
+costDiv := [cost_CODOM_Div(p, M, S) : p in primesFilter];
+// costDiv2 := [cost_CODOM_Div(p, M, S) : p in primesTie]; 
+costDivNAF := [cost_CODOM_DivNAF(p, M, S) : p in primesFilter];
+
+"==============================================";
+"";
+"";
+"=======NAF Vs Binary=========";
+WinNAFBIN := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] lt costBIN[i]];
+WinNAFBIN_cost := [costBIN[i] - costNAF[i] : i in [1..#primesFilter] | costNAF[i] lt costBIN[i]];
+
+WinBINNAF := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] gt costBIN[i]];
+WinBINNAF_cost := [costNAF[i] - costBIN[i]: i in [1..#primesFilter] | costNAF[i] gt costBIN[i]];
+
+TieNAFBIN := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] eq costBIN[i]];
+TieNAFBIN_cost := [costNAF[i] : i in [1..#primesFilter] | costNAF[i] eq costBIN[i]];
+
+"NAF wins", #WinNAFBIN, "times(", (#WinNAFBIN * 100.0)/#primesFilter, "%)";
+"Binary wins", #WinBINNAF, "times(", (#WinBINNAF * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieNAFBIN, "times(", (#TieNAFBIN * 100.0)/#primesFilter, "%)";
+// "There are", #primesTie, "primes where NAF = Binary";
+
+"";
+"";
+"=======NAF Vs Onuki=========";
+WinNAFOnuki := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] lt costOnuki[i]];
+WinNAFOnuki_cost := [costOnuki[i] - costNAF[i] : i in [1..#primesFilter] | costNAF[i] lt costOnuki[i]];
+
+WinOnukiNAF := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] gt costOnuki[i]];
+WinOnukiNAF_cost := [costNAF[i] - costOnuki[i] : i in [1..#primesFilter] | costNAF[i] gt costOnuki[i]];
+
+TieNAFOnuki := [primesFilter[i] : i in [1..#primesFilter] | costNAF[i] eq costOnuki[i]];
+TieNAFOnuki_cost := [costNAF[i] : i in [1..#primesFilter] | costNAF[i] eq costOnuki[i]];
+
+"NAF wins", #WinOnukiNAF, "times(", (#WinNAFOnuki * 100.0)/#primesFilter, "%)";
+"Onuki wins", #WinNAFOnuki, "times(", (#WinOnukiNAF * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieNAFOnuki, "times(", (#TieNAFOnuki * 100.0)/#primesFilter, "%)";
+"";
+"";
+"=======Binary Vs Onuki=========";
+WinBINOnuki := [primesFilter[i] : i in [1..#primesFilter] | costBIN[i] lt costOnuki[i]];
+WinBINOnuki_cost := [costOnuki[i] - costBIN[i] : i in [1..#primesFilter] | costBIN[i] lt costOnuki[i]];
+
+WinOnukiBIN := [primesFilter[i] : i in [1..#primesFilter] | costBIN[i] gt costOnuki[i]];
+WinOnukiBIN_cost := [costBIN[i] - costOnuki[i] : i in [1..#primesFilter] | costBIN[i] gt costOnuki[i]];
+
+TieBINOnuki := [primesFilter[i] : i in [1..#primesFilter] | costBIN[i] eq costOnuki[i]];
+TieBINOnuki_cost := [costBIN[i] : i in [1..#primesFilter] | costBIN[i] eq costOnuki[i]];
+
+"BIN wins", #WinBINOnuki, "times(", (#WinBINOnuki * 100.0)/#primesFilter, "%)";
+"Onuki wins", #WinOnukiBIN, "times(", (#WinOnukiBIN * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieBINOnuki, "times(", (#TieBINOnuki * 100.0)/#primesFilter, "%)";
+
+
+"";
+"";
+"=======Div Vs Onuki=========";
+WinDivOnuki := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] lt costOnuki[i]];
+WinDivOnuki_cost := [costOnuki[i] - costDiv[i] : i in [1..#primesFilter] | costDiv[i] lt costOnuki[i]];
+
+WinOnukiDiv := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] gt costOnuki[i]];
+WinOnukiDiv_cost := [costDiv[i] - costOnuki[i] : i in [1..#primesFilter] | costDiv[i] gt costOnuki[i]];
+
+TieDivOnuki := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] eq costOnuki[i]];
+TieDivOnuki_cost := [costDiv[i] : i in [1..#primesFilter] | costDiv[i] eq costOnuki[i]];
+
+"Div wins", #WinDivOnuki, "times(", (#WinDivOnuki * 100.0)/#primesFilter, "%)";
+"Onuki wins", #WinOnukiDiv, "times(", (#WinOnukiDiv * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivOnuki, "times(", (#TieDivOnuki * 100.0)/#primesFilter, "%)";
+// "";
+// "";
+
+"";
+"";
+"=======Div Vs BIN=========";
+WinDivBIN := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] lt costBIN[i]];
+WinDivBIN_cost := [costBIN[i] - costDiv[i] : i in [1..#primesFilter] | costDiv[i] lt costBIN[i]];
+
+WinBINDiv := [primesFilter[i] : i in [1..#primesFilter]  | costDiv[i] gt costBIN[i]];
+WinBINDiv_cost := [costDiv[i] - costBIN[i] : i in [1..#primesFilter]  | costDiv[i] gt costBIN[i]];
+
+TieDivBIN := [primesFilter[i] : i in [1..#primesFilter]  | costDiv[i] eq costBIN[i]];
+TieDivBIN_cost := [costDiv[i] : i in [1..#primesFilter]  | costDiv[i] eq costBIN[i]];
+
+"Div wins", #WinDivBIN, "times (", (#WinDivBIN * 100.0)/#primesFilter, "%)";
+"BIN wins", #WinBINDiv, "times(", (#WinBINDiv * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivBIN, "times(", (#TieDivBIN * 100.0)/#primesFilter, "%)";
+"Elements Analyzed:", #primesFilter;
+
+"=======Div Vs NAF=========";
+WinDivNAF := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] lt costNAF[i]];
+WinDivNAF_cost := [costNAF[i] - costDiv[i] : i in [1..#primesFilter] | costDiv[i] lt costNAF[i]];
+
+WinNAFDiv := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] gt costNAF[i]];
+WinNAFDiv_cost := [costDiv[i] - costNAF[i] : i in [1..#primesFilter] | costDiv[i] gt costNAF[i]];
+
+TieDivNAF := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] eq costNAF[i]];
+TieDivNAF_cost := [costDiv[i] : i in [1..#primesFilter] | costDiv[i] eq costNAF[i]];
+
+"Div wins", #WinDivNAF, "times (", (#WinDivNAF * 100.0)/#primesFilter, "%)";
+"NAF wins", #WinNAFDiv, "times(", (#WinNAFDiv * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivNAF, "times(", (#TieDivNAF * 100.0)/#primesFilter, "%)";
+"Elements Analyzed:", #primesFilter;
+"Total Interval:", #primes2;
+"Elements rejected:", #primes2 - #primesFilter ;
+
+
+"=======Div Vs DivNAF=========";
+WinDivDivNAF := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] lt costDivNAF[i]];
+WinDivDivNAF_cost := [costDivNAF[i] - costDiv[i] : i in [1..#primesFilter] | costDiv[i] lt costDivNAF[i]];
+
+WinDivNAFDiv := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] gt costDivNAF[i]];
+WinDivNAFDiv_cost := [costDivNAF[i] - costDiv[i] : i in [1..#primesFilter] | costDiv[i] gt costDivNAF[i]];
+
+TieDivDivNAF := [primesFilter[i] : i in [1..#primesFilter] | costDiv[i] eq costDivNAF[i]];
+TieDivDivNAF_cost := [costDivNAF[i] : i in [1..#primesFilter] | costDiv[i] eq costDivNAF[i]];
+
+"Div wins", #WinDivDivNAF, "times (", (#WinDivDivNAF * 100.0)/#primesFilter, "%)";
+"DivNAF wins", #WinDivNAFDiv, "times(", (#WinDivNAFDiv * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivDivNAF, "times(", (#TieDivDivNAF * 100.0)/#primesFilter, "%)";
+"Elements Analyzed:", #primesFilter;
+"Total Interval:", #primes2;
+"Elements rejected:", #primes2 - #primesFilter ;
+
+
+"=======DivNAF Vs NAF=========";
+WinDivNAFNAF := [primesFilter[i] : i in [1..#primesFilter] | costDivNAF[i] lt costNAF[i]];
+WinDivNAFNAF_cost := [costNAF[i] - costDivNAF[i] : i in [1..#primesFilter] | costDivNAF[i] lt costNAF[i]];
+
+WinNAFDivNAF := [primesFilter[i] : i in [1..#primesFilter] | costDivNAF[i] gt costNAF[i]];
+WinNAFDivNAF_cost := [costDivNAF[i] - costNAF[i] : i in [1..#primesFilter] | costDivNAF[i] gt costNAF[i]];
+
+TieDivNAFNAF := [primesFilter[i] : i in [1..#primesFilter] | costDivNAF[i] eq costNAF[i]];
+TieDivNAFNAF_cost := [costDivNAF[i] : i in [1..#primesFilter] | costDivNAF[i] eq costNAF[i]];
+
+"DivNAF wins", #WinDivNAFNAF, "times (", (#WinDivNAFNAF * 100.0)/#primesFilter, "%)";
+"NAF wins", #WinNAFDivNAF, "times(", (#WinNAFDivNAF * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivNAFNAF, "times(", (#TieDivNAFNAF * 100.0)/#primesFilter, "%)";
+"Elements Analyzed:", #primesFilter;
+"Total Interval:", #primes2;
+"Elements rejected:", #primes2 - #primesFilter ;
+
+
+"";
+"";
+"=======DivNAF Vs BIN=========";
+WinDivNAFBIN := [primesFilter[i] : i in [1..#primesFilter] | costDivNAF[i] lt costBIN[i]];
+WinDivNAFBIN_cost := [costBIN[i] - costDivNAF[i] : i in [1..#primesFilter] | costDivNAF[i] lt costBIN[i]];
+
+WinBINDivNAF := [primesFilter[i] : i in [1..#primesFilter]  | costDivNAF[i] gt costBIN[i]];
+WinBINDivNAF_cost := [costDivNAF[i] - costBIN[i] : i in [1..#primesFilter]  | costDivNAF[i] gt costBIN[i]];
+
+TieDivNAFBIN := [primesFilter[i] : i in [1..#primesFilter]  | costDivNAF[i] eq costBIN[i]];
+TieDivNAFBIN_cost := [costDivNAF[i] : i in [1..#primesFilter]  | costDivNAF[i] eq costBIN[i]];
+
+"DivNAF wins", #WinDivNAFBIN, "times (", (#WinDivNAFBIN * 100.0)/#primesFilter, "%)";
+"BIN wins", #WinBINDivNAF, "times(", (#WinBINDivNAF * 100.0)/#primesFilter, "%)";
+"There is a Tie", #TieDivNAFBIN, "times(", (#TieDivNAFBIN * 100.0)/#primesFilter, "%)";
+// "Elements Analyzed:", #primesFilter;
