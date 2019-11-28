@@ -1,1 +1,1 @@
-# Odd_Degree_Isogenies
+# Odd Degree Isogenies
