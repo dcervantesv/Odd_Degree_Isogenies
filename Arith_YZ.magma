@@ -1,0 +1,71 @@
+ 
+yADD:=function(P, Q, PQ)
+    //Consider YZ Edwards coordinates
+    //the input are     P = (y(P) : z(P))
+    //                 Q = (y(Q) : z(Q))
+    //                  PQ := (y(P - Q) : z(P - Q))
+    //Output: (y(P+Q) : z(P+Q))
+    // settings:     
+    yP := P[1]; zP := P[2];
+    yQ := Q[1]; zQ := Q[2];
+    yPQ := PQ[1]; zPQ := PQ[2];
+    
+    //Sending the difference to Montgomery Coordinates
+    yD := zPQ + yPQ; 
+    zD := zPQ - yPQ;
+    
+    t0:= zP*yQ;
+    t1:= yP*zQ;
+    ZPQ:=t0-t1;
+    YPQ:=t0+t1;
+    ZPQ:=ZPQ^2;
+    YPQ:=YPQ^2;
+
+    //Computing in Montgomery
+    t0 := YPQ * zD;
+    t1 := ZPQ * yD;
+    // turning back to Edwards
+    YPQ := t0 - t1;
+    ZPQ := t0 + t1;
+    return [YPQ,ZPQ];		// Total: 4M+2S+6a
+end function;
+ 
+ 
+yDBL:=function(P, a, ad)
+    //This is NOT the CLASSICAL yDBL since 
+    //make use of the constant ad := a-d
+    t0 := P[1]^2; 
+    t1 := P[2]^2; 
+    Z2 := ad*t0;
+    X2 := Z2*t1;
+    t1 := t1-t0; 
+    t0 := a*t1;
+    Z2 := Z2+t0;
+    t0:= Z2*t1;
+    //return X2 - Z2 and X2 + Z2
+    Z2 := X2 + t0;
+    X2 := X2 - t0;
+    return [X2 ,Z2];	// Total: 4M+2S+4a
+end function;
+
+//function only for testing
+Ladder := function(m, P, a, ad)
+    //P in Edwards coordinates
+    //Classical Montgomery Ladder left-to-right
+    bits :=  Intseq(m, 2);
+    assert bits[#bits] eq 1;
+    R0 := P;
+    R1 := yDBL(P, a, ad);
+    for i := (#bits - 1) to 1 by -1 do
+        if bits[i] eq 1 then
+            R0 := yADD(R0, R1, P);
+            R1 := yDBL(R1, a, ad);
+        else
+            R1 := yADD(R0, R1, P);
+            R0 := yDBL(R0, a, ad);
+        end if;
+    end for;
+    return R0;
+end function;
+
+

@@ -1,0 +1,89 @@
+load "Arith_YZ.magma";
+
+KPS := function(K, a, ad, s)
+    Kps := [K];
+    Kps[2] := yDBL(K, a, ad); //4M + 2S + 4A
+    //computing kernel points
+    for i := 3 to s do
+        Kps[i] := yADD(Kps[i-1], K, Kps[i-2]);//4M + 2S + 6A
+    end for;
+    return Kps;
+end function;
+
+PEVAL := function(Q, Kps, s)
+    
+    //Input: Point Q to be evaluated
+    //              Set Kps with the ((l-1) div 2) kernel points
+    // Output: \phi(Q) 
+    //Kps is the set of kernel points in Edwards coordinates
+    //
+    s0 := Q[1] * Kps[1][2];//y(Q)*z(P)
+    s1 := Q[2] * Kps[1][1];//z(Q) * y(P)
+    yn := s0 + s1;
+    zn := s0 - s1;
+    for i := 2 to s do
+        s0 := Q[1] * Kps[i][2];//y(Q) * z([i]P)
+        s1 := Q[2] * Kps[i][1];//z(Q) * y([i]P)
+        t0 := s0 + s1;
+        yn := yn * t0;    
+        t0 := s0 - s1;
+        zn := zn * t0;
+    end for;
+    yn := yn^2;
+    zn := zn^2;
+    t0 := Q[1] + Q[2];
+    t1 := Q[2] - Q[1];
+    tn := yn * t0;
+    zn := zn * t1;
+    yn := tn - zn;
+    zn := tn + zn;
+    return [yn, zn];
+end function; //cost d (4M + 2A) + 2S + 2M + 2A = 2( (2d+1)M + (d + 1)A + S) 
+
+CODOM_NAFexp := function(s, L, w, a, d, F)
+    //CODOM using NAF recoding.
+    //If L = l_2 set w to a position with a zero digit
+    By := F[1, 1];
+    Bz := F[1, 2];
+    for i := 2 to s do
+        By := By * F[i, 1];
+        Bz := Bz * F[i, 2];
+    end for;
+    //Initialization of vectors
+    Ta := [1, 1];
+    Td := [1, 1];
+    Sign := ((L[1] + 1) div 2) + 1;
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := 2 to (w-1) do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    a := a^2;
+    d := d^2;
+    Sign := (Sign mod 2) + 1; //oposite sign
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := (w+1) to #L do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Sign := ((L[i] + 1) div 2) + 1;
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    //patch for binary exponentiation
+     if L[w] eq 0 then
+        ap := Bz^8 * Ta[2];
+        am := By^8 * Td[2];
+    else
+        ap := Bz^8 * Ta[2] * Td[1];
+        am := By^8 * Ta[1] * Td[2];
+    end if;
+    return ap, am;
+end function;

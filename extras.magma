@@ -1,0 +1,122 @@
+NAF := function(n)
+    i := 1;
+    L := [];
+    k := n;
+//     K := Intseq(k, 2);
+    while k ge 1 do
+        if IsOdd(k) then
+            L[i] := 2 - (k mod 4);
+            k := k - L[i];
+        else
+            L[i] := 0;
+        end if;
+        k := k div 2;
+        i +:= 1;
+    end while;
+    return L;
+end function;
+
+Nafexp := function(a, d, L, w)
+//Initialization of vectors
+    Ta := [1, 1];
+    Td := [1, 1];
+    Sign := ((L[1] + 1) div 2) + 1;
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := 2 to (w-1) do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    a := a^2;
+    d := d^2;
+    Sign := (Sign mod 2) + 1; //oposite sign
+    Ta[Sign] := a;
+    Td[Sign] := d;
+    for i := (w+1) to #L do
+        a := a^2;
+        d := d^2;
+        if L[i] ne 0 then
+            Sign := ((L[i] + 1) div 2) + 1;
+            Ta[Sign] := Ta[Sign] * a;
+            Td[Sign] := Td[Sign] * d;
+        end if;
+    end for;
+    if L[w] eq 0 then
+        aa := Ta[2];
+        dd := Td[2];
+    else
+        aa := Ta[2]*(Ta[1]^-1);
+        dd := Td[2]*(Td[1]^-1);
+    end if;
+    return Fp!aa, Fp!dd;
+end function;
+
+
+M2E_Curve := function(A, C)
+    //Input: Montgomery  curve projective constant (A:C)
+    //Output: Edwards curve constants (a, d)
+    C2 := 2*C;
+    return A + C2, A - C2; 
+end function;
+
+E2M_Curve := function(a, d)
+    //Input : Edwards constants a, d
+    //Output Montgomery afin constant A
+    A2 := a + d;
+    A2 := A2 + A2;
+    C4 := a - d;
+    A := A2 /C4;
+    return A;
+end function;
+
+E2M_Point := function(P)
+    //Input: Point P in Edwards coordinates
+    //Output: Point Q in Montgomery Coordinates
+    return [P[2] + P[1], P[2] - P[1]];
+end function;
+
+M2E_Point := function(P)
+    //Input: Point P in Montgomery Coordinates
+    //Output : Point Q in Edwards coordinates
+    return [P[1] - P[2], P[1] + P[2]];
+end function;
+
+//function for testing*********
+get_M_curve := function(A)
+    //Input: Montgomery Curve constant A
+    //Output: Elliptic Curve Magma Object of the respective Montgomery Curve
+    return EllipticCurve([0, A, 0, 1,Fp!0]);
+end function; 
+
+
+// IsFullOrder := function(P, PrimeList)
+//     for l in PrimeList do
+//         t := (p+1) div l;
+//         Q := t*P;
+//         if Q eq Em!0 then
+//             return false;
+//         end if;
+//     end for;
+//     return true;
+// end function;
+// //look for a full order point
+// flag0 := true;
+// x := 1;
+// while flag0 do
+//     x +:= 1;
+//     flag , P := IsPoint(Em, x);
+//     while flag eq false do
+//         x +:= 1;
+//         flag , P := IsPoint(Em, x);
+//     end while;
+//     if IsFullOrder(P, primes[4..#primes]) then
+//         flag0 := false;
+//     end if;
+// end while;
+// 
+// x; P;
+

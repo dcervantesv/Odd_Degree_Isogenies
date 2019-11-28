@@ -1,0 +1,65 @@
+clear;
+
+//Factorization of (P512 + 1) / 4 
+primes := [   3,   5,   7,  11,  13,  17,  19,  23,
+  29,  31,  37,  41,  43,  47,  53,  59,
+  61,  67,  71,  73,  79,  83,  89,  97,
+ 101, 103, 107, 109, 113, 127, 131, 137,
+ 139, 149, 151, 157, 163, 167, 173, 179,
+ 181, 191, 193, 197, 199, 211, 223, 227,
+ 229, 233, 239, 241, 251, 257, 263, 269,
+ 271, 277, 281, 283, 293, 307, 311, 313,
+ 317, 331, 337, 347, 349, 353, 359, 367,
+ 373, 587];
+//P512
+p := (4 * &*primes) - 1;
+Fp := GF(p);
+_<X> := PolynomialRing(Fp);
+
+A := Fp!0;
+C := Fp!1;
+// Em := EllipticCurve([Fp!1,0]);
+Em := EllipticCurve([0, A, 0, 1,Fp!0]);
+load "Isogenies_YZ.magma";
+load "extras.magma";
+
+x := Fp!4; // line 38-63 in extras.magma
+_, P := IsPoint(Em, x);
+P := P * 2 *5*7; //Point of order (p+1)/(4*3*5*7);
+Pm := [P[1], Fp!1];//Point in Montgomery XZ corrdinates
+Pe := M2E_Point(Pm);//Point in Edwards YZ coordinates
+
+a, d := M2E_Curve(A, C);//Constants of the Edwards curve isomorphic to Em
+e := a - d;//Extra constant for faster Edwards Arithmetic
+//For testing 
+//Compute a chain of isogenies of degree 11, 13, ..., 587
+//For the sake of simplicity we skip the 3,5 and seven isogenies
+for l in primes[4..#primes] do
+    //getting an order l point
+    K := Ladder((p+1) div l,  Pe, a , e);
+    s := l div 2;
+    //Computing Kernel Points
+    F := KPS(K, a, e, s);
+    //computing NAF(l)
+    L := NAF(l);
+    l2 := Intseq(l, 2);
+    //patch for the case when l2=NAF(l)
+    if L eq l2 then
+        w := Index(L, 0);
+    else
+        w := Index(L, -1 * L[1]);
+    end if;
+    //Computing CODOM curve using NAF exponentiation
+    a, d:= CODOM_NAFexp(s, L, w, a, d, F); //just for testing purposes
+    // Extra constant for faster Edwards arithmetic
+    e := a - d;
+    //Point Evaluation
+    Pe := PEVAL(Pe, F, s);
+end for;
+//Verifying that the last curve is isogenous to the first one.
+En := get_M_curve(E2M_Curve(a, d));
+if ((p+1) * Random(En)) eq En!0 then
+    "Everything looks good";
+else
+    "fail ";
+end if;
